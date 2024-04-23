@@ -10,11 +10,13 @@ struct File {
     name: String,
     is_dir: bool,
     path: String,
+    size: u64
 }
 
 // a function that takes a directory path as input and return a list of files in the directory as str list
 #[tauri::command]
 fn read_dir(path: &str, with_hidden: Option<bool>) -> Option<Vec<File>> {
+    use std::os::unix::fs::MetadataExt;
     let mut result: Vec<File> = Vec::new();
 
     let dir = fs::read_dir(path);
@@ -32,10 +34,18 @@ fn read_dir(path: &str, with_hidden: Option<bool>) -> Option<Vec<File>> {
             continue;
         }
 
+
+        let mut size = item_unwrapped.metadata().unwrap().size();
+        if item_unwrapped.metadata().unwrap().is_dir(){
+            size = fs::read_dir(item_unwrapped.path().as_path().to_str().unwrap().to_string()).unwrap().count() as u64;
+        }
+        
+        
         result.push(File {
             name: file_name.clone(),
             is_dir: item_unwrapped.metadata().unwrap().is_dir(),
             path: item_unwrapped.path().as_path().to_str().unwrap().to_string(),
+            size: size
         });
     }
 

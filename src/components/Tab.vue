@@ -2,21 +2,27 @@
 import {Ref, ref, watch} from "vue";
 import {DirectoryItem} from "../models/DirectoryItem.ts";
 import {invoke} from "@tauri-apps/api/tauri";
-import {IconSearch, IconChevronLeft, IconChevronRight} from '@tabler/icons-vue';
-import FileCard from "./FileCard.vue";
-import DirectoryCard from "./DirectoryCard.vue";
+import {IconSearch, IconChevronLeft, IconChevronRight, IconLayoutGridFilled, IconList} from '@tabler/icons-vue';
+import GridView from "./GridView.vue";
+import TableView from "./TableView.vue";
 
 const emits = defineEmits<{locationUpdated: [value: string]}>();
 
 const current_path: Ref<string> = ref("");
+const display: Ref<"grid"|"list"> = ref("grid");
+const files: Ref<Array<DirectoryItem> | null> = ref(null);
+
+const before: string[] = [];
+let after: string[] = [];
 
 invoke("home_dir_path").then(async value => {
   current_path.value = <string>value
 });
 
-const files: Ref<Array<DirectoryItem> | null> = ref(null);
-const before: string[] = [];
-let after: string[] = [];
+function nextDisplay(){
+  if(display.value == "grid") display.value = "list";
+  else display.value = "grid";
+}
 
 watch(current_path, async () => {
   await loadDir();
@@ -24,17 +30,10 @@ watch(current_path, async () => {
 });
 
 async function loadDir() {
-  let unordered_files: Array<DirectoryItem> | null = await invoke("read_dir", {
+  files.value = await invoke("read_dir", {
     path: current_path.value,
     with_hidden: true
   });
-
-  if (unordered_files == null) {
-    files.value = null;
-    return;
-  }
-
-  files.value = unordered_files.sort((a, b) => a.name.localeCompare(b.name))
 }
 
 async function setDir(path: string) {
@@ -85,21 +84,14 @@ async function forward() {
           </button>
         </div>
       </form>
+      <button @click="nextDisplay">
+        <IconLayoutGridFilled v-if="display == 'grid'" size="32"/>
+        <IconList v-else-if="display == 'list'" size="32" stroke="2"/>
+      </button>
     </div>
-
     <p v-if="current_path == null || files == null" class="m-1">Directory not found.</p>
     <p v-else-if="files.length <= 0" class="m-1">Empty directory.</p>
-    <div v-else class="w-full grid gap-2 grid-template-100 px-1">
-      <div v-for="item in files">
-        <DirectoryCard v-if="item.is_dir" :directory="item" @go-to-dir="setDir"/>
-        <FileCard v-else :file="item"/>
-      </div>
-    </div>
+    <GridView v-else-if="display == 'grid'" :files="files" @set-dir="path => setDir(path)"/>
+    <TableView v-else :files="files" @set-dir="path => setDir(path)"/>
   </div>
 </template>
-
-<style scoped>
-.grid-template-100 {
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-}
-</style>
